@@ -73,12 +73,12 @@ function buildSceneComposition(
     enter: { type: "text-appear", duration: 0.8 },
   });
 
-  // AI Voiceover using Creatomate's built-in TTS
+  // AI Voiceover using Google Cloud TTS (built into Creatomate)
   elements.push({
     type: "audio",
     text_to_speech: {
-      type: "elevenlabs",
-      voice_id: "21m00Tcm4TlvDq8ikWAM", // Rachel voice - natural sounding
+      type: "google",
+      voice_id: "en-US-Studio-O", // High-quality Google Studio voice (female)
       text: scene.voiceoverText,
     },
   });
@@ -111,6 +111,10 @@ export async function createVideoRender(
     width: 1080,
     height: 1920,
     frame_rate: 30,
+    // Higher quality encoding
+    pixel_format: "yuv420p",
+    video_bitrate: "8 Mbps",
+    audio_bitrate: "192 kbps",
     elements: compositions,
   };
 
