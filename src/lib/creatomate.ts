@@ -73,11 +73,11 @@ function buildSceneComposition(
     enter: { type: "text-appear", duration: 0.8 },
   });
 
-  // AI Voiceover using ElevenLabs TTS
+  // AI Voiceover using Creatomate's built-in TTS
   elements.push({
     type: "audio",
-    source: {
-      provider: "elevenlabs",
+    text_to_speech: {
+      type: "elevenlabs",
       voice_id: "21m00Tcm4TlvDq8ikWAM", // Rachel voice - natural sounding
       text: scene.voiceoverText,
     },
