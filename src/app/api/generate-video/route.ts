@@ -4,6 +4,21 @@ import { GenerateVideoRequest, GenerateVideoResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
+    // Defensive check for Creatomate API key
+    if (!process.env.CREATOMATE_API_KEY) {
+      console.error("Missing CREATOMATE_API_KEY environment variable");
+      return NextResponse.json(
+        { error: "Server misconfiguration: missing Creatomate API key" },
+        { status: 500 }
+      );
+    }
+
+    // Log that we have the key (masked for security)
+    console.log(
+      "Creatomate API key prefix:",
+      process.env.CREATOMATE_API_KEY.slice(0, 8) + "..."
+    );
+
     const body: GenerateVideoRequest = await request.json();
 
     const { scenes, backgrounds } = body;
@@ -22,6 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("Creating video render with", scenes.length, "scenes");
     const render = await createVideoRender(scenes, backgrounds);
 
     const response: GenerateVideoResponse = {

@@ -4,6 +4,21 @@ import { SummariseRequest, SummariseResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
+    // Defensive check for Anthropic API key
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("Missing ANTHROPIC_API_KEY environment variable");
+      return NextResponse.json(
+        { error: "Server misconfiguration: missing Anthropic API key" },
+        { status: 500 }
+      );
+    }
+
+    // Log that we have the key (masked for security)
+    console.log(
+      "Anthropic API key prefix:",
+      process.env.ANTHROPIC_API_KEY.slice(0, 10) + "..."
+    );
+
     const body: SummariseRequest = await request.json();
 
     const { newsletterText, summaryLength, tone } = body;
@@ -22,6 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("Summarising newsletter with length:", summaryLength);
     const scenes = await summariseNewsletter(
       newsletterText,
       summaryLength,
