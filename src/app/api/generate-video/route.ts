@@ -27,25 +27,11 @@ export async function POST(request: NextRequest) {
     const baseUrl = origin.startsWith("http") ? origin : `${protocol}://${origin}`;
 
     // Convert relative URLs to absolute URLs for Creatomate
-    let { scenes, backgrounds, backgroundMusic } = body;
+    let { scenes, background, backgroundMusic } = body;
 
-    if (backgrounds) {
-      backgrounds = backgrounds.map((bg) => {
-        if (typeof bg === "string") {
-          // String URL
-          if (bg.startsWith("/")) {
-            return { url: `${baseUrl}${bg}`, type: "image" as const };
-          }
-          return { url: bg, type: "image" as const };
-        } else {
-          // BackgroundMedia object
-          const bgMedia = bg as BackgroundMedia;
-          if (bgMedia.url.startsWith("/")) {
-            return { ...bgMedia, url: `${baseUrl}${bgMedia.url}` };
-          }
-          return bgMedia;
-        }
-      });
+    // Convert background URL if relative
+    if (background && background.url.startsWith("/")) {
+      background = { ...background, url: `${baseUrl}${background.url}` };
     }
 
     // Convert music URL if relative
@@ -68,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Creating video render with", scenes.length, "scenes");
-    const render = await createVideoRender(scenes, backgrounds, backgroundMusic);
+    const render = await createVideoRender(scenes, background, backgroundMusic);
 
     const response: GenerateVideoResponse = {
       renderId: render.id,

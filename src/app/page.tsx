@@ -37,8 +37,8 @@ export default function Home() {
   const [newsletterText, setNewsletterText] = useState("");
   const [summaryLength, setSummaryLength] = useState<SummaryLength>("medium");
   const [tone, setTone] = useState<ToneOption>("Professional");
-  const [backgrounds, setBackgrounds] = useState<(BackgroundMedia | null)[]>([null, null, null, null, null, null]);
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [background, setBackground] = useState<BackgroundMedia | null>(null);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
   const [backgroundMusic, setBackgroundMusic] = useState<MusicUpload | null>(null);
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [musicVolume, setMusicVolume] = useState(15); // Default 15% volume
@@ -116,13 +116,12 @@ export default function Home() {
 
       // Step 2: Generate video
       setStep("generating");
-      const filteredBackgrounds = backgrounds.filter((bg): bg is BackgroundMedia => bg !== null);
       const generateResponse = await fetch("/api/generate-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scenes: summariseData.scenes,
-          backgrounds: filteredBackgrounds.length > 0 ? filteredBackgrounds : undefined,
+          background: background || undefined,
           title,
           backgroundMusic: backgroundMusic ? {
             url: backgroundMusic.url,
@@ -164,8 +163,8 @@ export default function Home() {
     stopPolling();
   };
 
-  const handleFileUpload = async (index: number, file: File) => {
-    setUploadingIndex(index);
+  const handleBackgroundUpload = async (file: File) => {
+    setUploadingBackground(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -181,36 +180,28 @@ export default function Home() {
       }
 
       const data: BackgroundMedia = await response.json();
-      const newBackgrounds = [...backgrounds];
-      newBackgrounds[index] = data;
-      setBackgrounds(newBackgrounds);
+      setBackground(data);
     } catch (err) {
       console.error("Upload error:", err);
       setError(err instanceof Error ? err.message : "Failed to upload file");
     } finally {
-      setUploadingIndex(null);
+      setUploadingBackground(false);
     }
   };
 
-  const handleDrop = (index: number, e: React.DragEvent) => {
+  const handleBackgroundDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file) {
-      handleFileUpload(index, file);
+      handleBackgroundUpload(file);
     }
   };
 
-  const handleFileInputChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBackgroundInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleFileUpload(index, file);
+      handleBackgroundUpload(file);
     }
-  };
-
-  const removeBackground = (index: number) => {
-    const newBackgrounds = [...backgrounds];
-    newBackgrounds[index] = null;
-    setBackgrounds(newBackgrounds);
   };
 
   const handleMusicUpload = async (file: File) => {
@@ -368,85 +359,81 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Background Media (collapsible) */}
+              {/* Video Background (collapsible) */}
               <details className="group">
                 <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition">
-                  Background Media (optional)
+                  Video Background (optional)
                   <span className="ml-2 text-zinc-500">+</span>
                 </summary>
                 <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  Drag & drop images or videos for each scene background
+                  Upload an image or video to use as background for the entire video
                 </p>
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {backgrounds.slice(0, summaryLength === "short" ? 3 : summaryLength === "medium" ? 5 : 6).map((bg, index) => (
-                    <div key={index} className="relative">
-                      {bg ? (
-                        <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-green-500 bg-zinc-900">
-                          {bg.type === "video" ? (
-                            <video
-                              src={bg.url}
-                              className="w-full h-full object-cover"
-                              muted
-                              loop
-                              autoPlay
-                              playsInline
-                            />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={bg.url}
-                              alt={`Scene ${index + 1} background`}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                          <div className="absolute bottom-1 left-1 right-1">
-                            <p className="text-[10px] text-white truncate">{bg.fileName || "Uploaded"}</p>
-                            <span className={`text-[9px] px-1 py-0.5 rounded ${bg.type === "video" ? "bg-purple-500" : "bg-blue-500"} text-white`}>
-                              {bg.type}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeBackground(index)}
-                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs flex items-center justify-center"
-                          >
-                            ×
-                          </button>
-                        </div>
+                <div className="mt-4">
+                  {background ? (
+                    <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-green-500 bg-zinc-900 max-w-sm">
+                      {background.type === "video" ? (
+                        <video
+                          src={background.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          loop
+                          autoPlay
+                          playsInline
+                        />
                       ) : (
-                        <label
-                          htmlFor={`background-upload-${index}`}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => handleDrop(index, e)}
-                          className={`aspect-[9/16] rounded-lg border-2 border-dashed cursor-pointer transition flex flex-col items-center justify-center ${
-                            uploadingIndex === index
-                              ? "border-blue-500 bg-blue-500/10"
-                              : "border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500"
-                          }`}
-                        >
-                          <input
-                            id={`background-upload-${index}`}
-                            type="file"
-                            accept="image/*,video/*"
-                            onChange={(e) => handleFileInputChange(index, e)}
-                            className="sr-only"
-                          />
-                          {uploadingIndex === index ? (
-                            <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
-                          ) : (
-                            <>
-                              <svg className="w-6 h-6 text-zinc-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Scene {index + 1}</span>
-                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500">Drop or click</span>
-                            </>
-                          )}
-                        </label>
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={background.url}
+                          alt="Video background"
+                          className="w-full h-full object-cover"
+                        />
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <p className="text-xs text-white truncate">{background.fileName || "Uploaded"}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded ${background.type === "video" ? "bg-purple-500" : "bg-blue-500"} text-white`}>
+                          {background.type}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBackground(null)}
+                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm flex items-center justify-center"
+                      >
+                        ×
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    <label
+                      htmlFor="background-upload"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleBackgroundDrop}
+                      className={`flex flex-col items-center justify-center p-8 rounded-lg border-2 border-dashed cursor-pointer transition ${
+                        uploadingBackground
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500"
+                      }`}
+                    >
+                      <input
+                        id="background-upload"
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleBackgroundInputChange}
+                        className="sr-only"
+                      />
+                      {uploadingBackground ? (
+                        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+                      ) : (
+                        <>
+                          <svg className="w-10 h-10 text-zinc-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">Drop image or video here</span>
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">or click to browse</span>
+                        </>
+                      )}
+                    </label>
+                  )}
                 </div>
               </details>
 

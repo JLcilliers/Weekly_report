@@ -22,7 +22,7 @@ export interface BackgroundMusicConfig {
 
 export interface GenerateVideoRequest {
   scenes: Scene[];
-  backgrounds?: (BackgroundMedia | string)[];
+  background?: BackgroundMedia;
   title?: string;
   backgroundMusic?: BackgroundMusicConfig;
 }

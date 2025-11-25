@@ -15,30 +15,23 @@ type RenderScriptElement = any;
 function buildSceneComposition(
   scene: Scene,
   sceneIndex: number,
-  background?: BackgroundMedia | string
+  background?: BackgroundMedia
 ): RenderScriptElement {
   const elements: RenderScriptElement[] = [];
 
-  // Determine background type
-  const bgMedia: BackgroundMedia | null = background
-    ? typeof background === "string"
-      ? { url: background, type: "image" }
-      : background
-    : null;
-
   // Background video, image, or solid color
-  if (bgMedia) {
-    if (bgMedia.type === "video") {
+  if (background) {
+    if (background.type === "video") {
       elements.push({
         type: "video",
-        source: bgMedia.url,
+        source: background.url,
         fit: "cover",
         audio_volume: "0%", // Mute background video
       });
     } else {
       elements.push({
         type: "image",
-        source: bgMedia.url,
+        source: background.url,
         fit: "cover",
       });
     }
@@ -108,7 +101,7 @@ function buildSceneComposition(
 
 export async function createVideoRender(
   scenes: Scene[],
-  backgrounds?: (BackgroundMedia | string)[],
+  background?: BackgroundMedia,
   backgroundMusic?: BackgroundMusicConfig
 ): Promise<CreatomateRenderResponse> {
   const apiKey = process.env.CREATOMATE_API_KEY;
@@ -117,9 +110,9 @@ export async function createVideoRender(
     throw new Error("CREATOMATE_API_KEY environment variable is not set");
   }
 
-  // Build RenderScript with compositions for each scene
+  // Build RenderScript with compositions for each scene (same background for all)
   const compositions = scenes.map((scene, index) =>
-    buildSceneComposition(scene, index, backgrounds?.[index])
+    buildSceneComposition(scene, index, background)
   );
 
   // Build elements array - compositions plus optional background music
