@@ -1,9 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Scene, SummaryLength } from "@/types";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+  }
+  return new Anthropic({ apiKey });
+}
 
 function getSceneCount(length: SummaryLength): { min: number; max: number } {
   switch (length) {
@@ -48,6 +52,7 @@ Output ONLY valid JSON in this exact format, with no additional text:
 
 ${newsletterText}`;
 
+  const anthropic = getAnthropicClient();
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 2048,
