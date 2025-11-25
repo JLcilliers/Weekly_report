@@ -401,10 +401,8 @@ export default function Home() {
               {step === "completed" && videoUrl && (
                 <>
                   <a
-                    href={videoUrl}
+                    href={`/api/download?url=${encodeURIComponent(videoUrl)}`}
                     download
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="block w-full py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium text-center transition"
                   >
                     Download Video
