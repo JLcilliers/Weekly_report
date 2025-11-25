@@ -8,6 +8,7 @@ import {
   SummariseResponse,
   GenerateVideoResponse,
   StatusResponse,
+  BackgroundMedia,
 } from "@/types";
 
 type ProcessingStep = "idle" | "summarising" | "generating" | "rendering" | "completed" | "error";
@@ -18,14 +19,21 @@ const SUMMARY_LENGTH_OPTIONS: { value: SummaryLength; label: string }[] = [
   { value: "long", label: "Long (5-6 scenes)" },
 ];
 
-const TONE_OPTIONS: ToneOption[] = ["Professional", "Casual", "Friendly", "Energetic"];
+const TONE_OPTIONS: { value: ToneOption; label: string; description: string }[] = [
+  { value: "Professional", label: "Professional", description: "Clean and corporate" },
+  { value: "Casual", label: "Casual", description: "Relaxed and approachable" },
+  { value: "Friendly", label: "Friendly", description: "Warm and welcoming" },
+  { value: "Energetic", label: "Energetic", description: "Upbeat and exciting" },
+  { value: "Savage", label: "Savage", description: "Cheeky with swear words" },
+];
 
 export default function Home() {
   const [title, setTitle] = useState("");
   const [newsletterText, setNewsletterText] = useState("");
   const [summaryLength, setSummaryLength] = useState<SummaryLength>("medium");
   const [tone, setTone] = useState<ToneOption>("Professional");
-  const [backgrounds, setBackgrounds] = useState<string[]>(["", "", "", "", "", ""]);
+  const [backgrounds, setBackgrounds] = useState<(BackgroundMedia | null)[]>([null, null, null, null, null, null]);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const [step, setStep] = useState<ProcessingStep>("idle");
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -34,6 +42,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -100,7 +109,7 @@ export default function Home() {
 
       // Step 2: Generate video
       setStep("generating");
-      const filteredBackgrounds = backgrounds.filter((bg) => bg.trim() !== "");
+      const filteredBackgrounds = backgrounds.filter((bg): bg is BackgroundMedia => bg !== null);
       const generateResponse = await fetch("/api/generate-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,9 +153,52 @@ export default function Home() {
     stopPolling();
   };
 
-  const handleBackgroundChange = (index: number, value: string) => {
+  const handleFileUpload = async (index: number, file: File) => {
+    setUploadingIndex(index);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
+      }
+
+      const data: BackgroundMedia = await response.json();
+      const newBackgrounds = [...backgrounds];
+      newBackgrounds[index] = data;
+      setBackgrounds(newBackgrounds);
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError(err instanceof Error ? err.message : "Failed to upload file");
+    } finally {
+      setUploadingIndex(null);
+    }
+  };
+
+  const handleDrop = (index: number, e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(index, file);
+    }
+  };
+
+  const handleFileInputChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(index, file);
+    }
+  };
+
+  const removeBackground = (index: number) => {
     const newBackgrounds = [...backgrounds];
-    newBackgrounds[index] = value;
+    newBackgrounds[index] = null;
     setBackgrounds(newBackgrounds);
   };
 
@@ -232,45 +284,112 @@ export default function Home() {
 
               {/* Tone */}
               <div>
-                <label
-                  htmlFor="tone"
-                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-                >
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                   Voice Tone
                 </label>
-                <select
-                  id="tone"
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value as ToneOption)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                >
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {TONE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTone(option.value)}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${
+                        tone === option.value
+                          ? option.value === "Savage"
+                            ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400"
+                            : "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                          : "border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400"
+                      }`}
+                    >
+                      <span className="block">{option.label}</span>
+                      <span className="block text-xs opacity-70">{option.description}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
+                {tone === "Savage" && (
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400">
+                    Warning: This mode includes swear words and cheeky commentary!
+                  </p>
+                )}
               </div>
 
-              {/* Background Images (collapsible) */}
+              {/* Background Media (collapsible) */}
               <details className="group">
                 <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition">
-                  Background Images (optional)
+                  Background Media (optional)
                   <span className="ml-2 text-zinc-500">+</span>
                 </summary>
-                <div className="mt-4 space-y-3">
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Drag & drop images or videos for each scene background
+                </p>
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {backgrounds.slice(0, summaryLength === "short" ? 3 : summaryLength === "medium" ? 5 : 6).map((bg, index) => (
-                    <div key={index}>
-                      <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                        Scene {index + 1} Background URL
-                      </label>
+                    <div key={index} className="relative">
                       <input
-                        type="url"
-                        value={bg}
-                        onChange={(e) => handleBackgroundChange(index, e.target.value)}
-                        placeholder="https://example.com/image.jpg"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        ref={(el) => { fileInputRefs.current[index] = el; }}
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => handleFileInputChange(index, e)}
+                        className="hidden"
                       />
+                      {bg ? (
+                        <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-green-500 bg-zinc-900">
+                          {bg.type === "video" ? (
+                            <video
+                              src={bg.url}
+                              className="w-full h-full object-cover"
+                              muted
+                              loop
+                              autoPlay
+                              playsInline
+                            />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={bg.url}
+                              alt={`Scene ${index + 1} background`}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          <div className="absolute bottom-1 left-1 right-1">
+                            <p className="text-[10px] text-white truncate">{bg.fileName || "Uploaded"}</p>
+                            <span className={`text-[9px] px-1 py-0.5 rounded ${bg.type === "video" ? "bg-purple-500" : "bg-blue-500"} text-white`}>
+                              {bg.type}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeBackground(index)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs flex items-center justify-center"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => fileInputRefs.current[index]?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleDrop(index, e)}
+                          className={`aspect-[9/16] rounded-lg border-2 border-dashed cursor-pointer transition flex flex-col items-center justify-center ${
+                            uploadingIndex === index
+                              ? "border-blue-500 bg-blue-500/10"
+                              : "border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500"
+                          }`}
+                        >
+                          {uploadingIndex === index ? (
+                            <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+                          ) : (
+                            <>
+                              <svg className="w-6 h-6 text-zinc-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Scene {index + 1}</span>
+                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500">Drop or click</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

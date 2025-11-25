@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createVideoRender } from "@/lib/creatomate";
-import { GenerateVideoRequest, GenerateVideoResponse } from "@/types";
+import { GenerateVideoRequest, GenerateVideoResponse, BackgroundMedia } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +21,32 @@ export async function POST(request: NextRequest) {
 
     const body: GenerateVideoRequest = await request.json();
 
-    const { scenes, backgrounds } = body;
+    // Get the origin from the request for converting relative URLs
+    const origin = request.headers.get("origin") || request.headers.get("host") || "";
+    const protocol = request.headers.get("x-forwarded-proto") || "http";
+    const baseUrl = origin.startsWith("http") ? origin : `${protocol}://${origin}`;
+
+    // Convert relative URLs to absolute URLs for Creatomate
+    let { scenes, backgrounds } = body;
+
+    if (backgrounds) {
+      backgrounds = backgrounds.map((bg) => {
+        if (typeof bg === "string") {
+          // String URL
+          if (bg.startsWith("/")) {
+            return { url: `${baseUrl}${bg}`, type: "image" as const };
+          }
+          return { url: bg, type: "image" as const };
+        } else {
+          // BackgroundMedia object
+          const bgMedia = bg as BackgroundMedia;
+          if (bgMedia.url.startsWith("/")) {
+            return { ...bgMedia, url: `${baseUrl}${bgMedia.url}` };
+          }
+          return bgMedia;
+        }
+      });
+    }
 
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(

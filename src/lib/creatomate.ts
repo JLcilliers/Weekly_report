@@ -1,4 +1,4 @@
-import { Scene } from "@/types";
+import { Scene, BackgroundMedia } from "@/types";
 
 const CREATOMATE_API_URL = "https://api.creatomate.com/v1";
 
@@ -15,17 +15,33 @@ type RenderScriptElement = any;
 function buildSceneComposition(
   scene: Scene,
   sceneIndex: number,
-  backgroundUrl?: string
+  background?: BackgroundMedia | string
 ): RenderScriptElement {
   const elements: RenderScriptElement[] = [];
 
-  // Background image or solid color
-  if (backgroundUrl) {
-    elements.push({
-      type: "image",
-      source: backgroundUrl,
-      fit: "cover",
-    });
+  // Determine background type
+  const bgMedia: BackgroundMedia | null = background
+    ? typeof background === "string"
+      ? { url: background, type: "image" }
+      : background
+    : null;
+
+  // Background video, image, or solid color
+  if (bgMedia) {
+    if (bgMedia.type === "video") {
+      elements.push({
+        type: "video",
+        source: bgMedia.url,
+        fit: "cover",
+        audio_volume: "0%", // Mute background video
+      });
+    } else {
+      elements.push({
+        type: "image",
+        source: bgMedia.url,
+        fit: "cover",
+      });
+    }
   } else {
     elements.push({
       type: "shape",
@@ -73,10 +89,12 @@ function buildSceneComposition(
     enter: { type: "text-appear", duration: 0.8 },
   });
 
-  // AI Voiceover using OpenAI TTS
+  // AI Voiceover using ElevenLabs TTS
+  // Provider string format: elevenlabs model_id=... voice_id=...
   elements.push({
     type: "audio",
-    provider: "openai voice:nova model:tts-1-hd",
+    provider: "elevenlabs model_id=eleven_multilingual_v2 voice_id=21m00Tcm4TlvDq8ikWAM",
+    dynamic: true,
     source: scene.voiceoverText,
   });
 
@@ -90,7 +108,7 @@ function buildSceneComposition(
 
 export async function createVideoRender(
   scenes: Scene[],
-  backgrounds?: string[]
+  backgrounds?: (BackgroundMedia | string)[]
 ): Promise<CreatomateRenderResponse> {
   const apiKey = process.env.CREATOMATE_API_KEY;
 

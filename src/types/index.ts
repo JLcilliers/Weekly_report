@@ -17,7 +17,7 @@ export interface SummariseResponse {
 
 export interface GenerateVideoRequest {
   scenes: Scene[];
-  backgrounds?: string[];
+  backgrounds?: (BackgroundMedia | string)[];
   title?: string;
 }
 
@@ -36,7 +36,13 @@ export interface StatusResponse {
 
 export type SummaryLength = "short" | "medium" | "long";
 
-export type ToneOption = "Professional" | "Casual" | "Friendly" | "Energetic";
+export type ToneOption = "Professional" | "Casual" | "Friendly" | "Energetic" | "Savage";
+
+export interface BackgroundMedia {
+  url: string;
+  type: "image" | "video";
+  fileName?: string;
+}
 
 export interface FormState {
   title: string;

@@ -20,12 +20,34 @@ function getSceneCount(length: SummaryLength): { min: number; max: number } {
   }
 }
 
+function getToneInstructions(tone: string): string {
+  if (tone === "Savage") {
+    return `SAVAGE MODE ACTIVATED! You are a brutally honest, hilariously cheeky content creator who doesn't give a damn about being polite. Your job is to roast the newsletter content while still delivering the key info.
+
+RULES FOR SAVAGE MODE:
+- Use swear words naturally (damn, hell, shit, bloody hell, for fuck's sake, etc.) - don't overdo it, but sprinkle them in
+- Be sarcastic and witty - mock corporate speak and buzzwords
+- Call out bullshit when you see it
+- Make fun of the obvious while still informing
+- Use phrases like "holy shit", "no fucking way", "are you kidding me", "what the actual hell"
+- Be the friend who tells it like it is after a few drinks
+- Make people laugh while they learn
+- If something is boring, SAY it's boring then make it interesting
+- Channel your inner Gordon Ramsay meets drunk best friend
+
+The goal: People should be snorting with laughter while actually learning something. Make it MEMORABLE.`;
+  }
+
+  return `The tone should be: ${tone}`;
+}
+
 export async function summariseNewsletter(
   newsletterText: string,
   summaryLength: SummaryLength,
   tone: string
 ): Promise<Scene[]> {
   const { min, max } = getSceneCount(summaryLength);
+  const toneInstructions = getToneInstructions(tone);
 
   const systemPrompt = `You are an expert content summarizer specializing in creating engaging video scripts for social media reels. Your task is to transform newsletter content into a series of scenes for a vertical video reel.
 
@@ -34,7 +56,7 @@ Each scene should:
 - Include 2-3 brief bullet points summarizing key information
 - Have voiceover text that sounds natural when spoken (1-2 sentences, max 250 characters)
 
-The tone should be: ${tone}
+${toneInstructions}
 
 Output ONLY valid JSON in this exact format, with no additional text:
 {
