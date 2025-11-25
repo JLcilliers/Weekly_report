@@ -3,6 +3,12 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 
+// Force Node.js runtime (required for fs operations)
+export const runtime = "nodejs";
+
+// Increase body size limit for large file uploads (50MB)
+export const maxDuration = 60;
+
 // Max file size: 50MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
