@@ -15,10 +15,16 @@ export interface SummariseResponse {
   scenes: Scene[];
 }
 
+export interface BackgroundMusicConfig {
+  url: string;
+  volume: number; // 0-100
+}
+
 export interface GenerateVideoRequest {
   scenes: Scene[];
   backgrounds?: (BackgroundMedia | string)[];
   title?: string;
+  backgroundMusic?: BackgroundMusicConfig;
 }
 
 export interface GenerateVideoResponse {

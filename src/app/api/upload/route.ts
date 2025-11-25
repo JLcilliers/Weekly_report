@@ -15,6 +15,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024;
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const ALLOWED_AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/aac", "audio/mp4", "audio/ogg"];
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,11 +37,12 @@ export async function POST(request: NextRequest) {
     // Determine file type
     const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
     const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+    const isAudio = ALLOWED_AUDIO_TYPES.includes(file.type);
 
-    if (!isImage && !isVideo) {
+    if (!isImage && !isVideo && !isAudio) {
       return NextResponse.json(
         {
-          error: "Invalid file type. Allowed: JPG, PNG, GIF, WebP, MP4, WebM, MOV",
+          error: "Invalid file type. Allowed: JPG, PNG, GIF, WebP, MP4, WebM, MOV, MP3, WAV, AAC",
         },
         { status: 400 }
       );
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Generate unique filename
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const extension = file.name.split(".").pop() || (isImage ? "jpg" : "mp4");
+    const extension = file.name.split(".").pop() || (isImage ? "jpg" : isVideo ? "mp4" : "mp3");
     const fileName = `${timestamp}-${randomStr}.${extension}`;
     const filePath = path.join(uploadsDir, fileName);
 
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       url,
-      type: isImage ? "image" : "video",
+      type: isImage ? "image" : isVideo ? "video" : "audio",
       fileName: file.name,
     });
   } catch (error) {

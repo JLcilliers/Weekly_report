@@ -11,6 +11,11 @@ import {
   BackgroundMedia,
 } from "@/types";
 
+interface MusicUpload {
+  url: string;
+  fileName: string;
+}
+
 type ProcessingStep = "idle" | "summarising" | "generating" | "rendering" | "completed" | "error";
 
 const SUMMARY_LENGTH_OPTIONS: { value: SummaryLength; label: string }[] = [
@@ -34,6 +39,9 @@ export default function Home() {
   const [tone, setTone] = useState<ToneOption>("Professional");
   const [backgrounds, setBackgrounds] = useState<(BackgroundMedia | null)[]>([null, null, null, null, null, null]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [backgroundMusic, setBackgroundMusic] = useState<MusicUpload | null>(null);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(15); // Default 15% volume
 
   const [step, setStep] = useState<ProcessingStep>("idle");
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -42,7 +50,6 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -117,6 +124,10 @@ export default function Home() {
           scenes: summariseData.scenes,
           backgrounds: filteredBackgrounds.length > 0 ? filteredBackgrounds : undefined,
           title,
+          backgroundMusic: backgroundMusic ? {
+            url: backgroundMusic.url,
+            volume: musicVolume,
+          } : undefined,
         }),
       });
 
@@ -200,6 +211,50 @@ export default function Home() {
     const newBackgrounds = [...backgrounds];
     newBackgrounds[index] = null;
     setBackgrounds(newBackgrounds);
+  };
+
+  const handleMusicUpload = async (file: File) => {
+    setUploadingMusic(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
+      }
+
+      const data = await response.json();
+      setBackgroundMusic({
+        url: data.url,
+        fileName: file.name,
+      });
+    } catch (err) {
+      console.error("Music upload error:", err);
+      setError(err instanceof Error ? err.message : "Failed to upload music");
+    } finally {
+      setUploadingMusic(false);
+    }
+  };
+
+  const handleMusicInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleMusicUpload(file);
+    }
+  };
+
+  const handleMusicDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleMusicUpload(file);
+    }
   };
 
   return (
@@ -325,13 +380,6 @@ export default function Home() {
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {backgrounds.slice(0, summaryLength === "short" ? 3 : summaryLength === "medium" ? 5 : 6).map((bg, index) => (
                     <div key={index} className="relative">
-                      <input
-                        ref={(el) => { fileInputRefs.current[index] = el; }}
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={(e) => handleFileInputChange(index, e)}
-                        className="hidden"
-                      />
                       {bg ? (
                         <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-green-500 bg-zinc-900">
                           {bg.type === "video" ? (
@@ -367,8 +415,8 @@ export default function Home() {
                           </button>
                         </div>
                       ) : (
-                        <div
-                          onClick={() => fileInputRefs.current[index]?.click()}
+                        <label
+                          htmlFor={`background-upload-${index}`}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => handleDrop(index, e)}
                           className={`aspect-[9/16] rounded-lg border-2 border-dashed cursor-pointer transition flex flex-col items-center justify-center ${
@@ -377,6 +425,13 @@ export default function Home() {
                               : "border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500"
                           }`}
                         >
+                          <input
+                            id={`background-upload-${index}`}
+                            type="file"
+                            accept="image/*,video/*"
+                            onChange={(e) => handleFileInputChange(index, e)}
+                            className="sr-only"
+                          />
                           {uploadingIndex === index ? (
                             <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
                           ) : (
@@ -388,10 +443,95 @@ export default function Home() {
                               <span className="text-[9px] text-zinc-400 dark:text-zinc-500">Drop or click</span>
                             </>
                           )}
-                        </div>
+                        </label>
                       )}
                     </div>
                   ))}
+                </div>
+              </details>
+
+              {/* Background Music (collapsible) */}
+              <details className="group">
+                <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition">
+                  Background Music (optional)
+                  <span className="ml-2 text-zinc-500">+</span>
+                </summary>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Add music that plays softly under the voiceover
+                </p>
+                <div className="mt-4 space-y-4">
+                  {backgroundMusic ? (
+                    <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500 rounded-lg">
+                      <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">{backgroundMusic.fileName}</p>
+                        <p className="text-xs text-zinc-500">Uploaded</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBackgroundMusic(null)}
+                        className="p-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="music-upload"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleMusicDrop}
+                      className={`flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed cursor-pointer transition ${
+                        uploadingMusic
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500"
+                      }`}
+                    >
+                      <input
+                        id="music-upload"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleMusicInputChange}
+                        className="sr-only"
+                      />
+                      {uploadingMusic ? (
+                        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+                      ) : (
+                        <>
+                          <svg className="w-8 h-8 text-zinc-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                          </svg>
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">Drop music file or click to browse</span>
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">MP3, WAV, AAC supported</span>
+                        </>
+                      )}
+                    </label>
+                  )}
+
+                  {/* Volume Slider */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label htmlFor="music-volume" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Music Volume
+                      </label>
+                      <span className="text-xs text-zinc-500">{musicVolume}%</span>
+                    </div>
+                    <input
+                      id="music-volume"
+                      type="range"
+                      min="5"
+                      max="50"
+                      value={musicVolume}
+                      onChange={(e) => setMusicVolume(Number(e.target.value))}
+                      className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                      Lower = voice clearer, Higher = music more prominent
+                    </p>
+                  </div>
                 </div>
               </details>
 

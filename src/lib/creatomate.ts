@@ -1,4 +1,4 @@
-import { Scene, BackgroundMedia } from "@/types";
+import { Scene, BackgroundMedia, BackgroundMusicConfig } from "@/types";
 
 const CREATOMATE_API_URL = "https://api.creatomate.com/v1";
 
@@ -108,7 +108,8 @@ function buildSceneComposition(
 
 export async function createVideoRender(
   scenes: Scene[],
-  backgrounds?: (BackgroundMedia | string)[]
+  backgrounds?: (BackgroundMedia | string)[],
+  backgroundMusic?: BackgroundMusicConfig
 ): Promise<CreatomateRenderResponse> {
   const apiKey = process.env.CREATOMATE_API_KEY;
 
@@ -121,6 +122,21 @@ export async function createVideoRender(
     buildSceneComposition(scene, index, backgrounds?.[index])
   );
 
+  // Build elements array - compositions plus optional background music
+  const elements: RenderScriptElement[] = [...compositions];
+
+  // Add background music on a separate track if provided
+  if (backgroundMusic) {
+    elements.push({
+      type: "audio",
+      track: 2, // Separate track from scene compositions
+      source: backgroundMusic.url,
+      audio_volume: `${backgroundMusic.volume}%`,
+      // Loop the music to fill the entire video duration
+      loop: true,
+    });
+  }
+
   const renderScript = {
     output_format: "mp4",
     width: 1080,
@@ -128,7 +144,7 @@ export async function createVideoRender(
     frame_rate: 30,
     // Full quality rendering
     render_scale: 1,
-    elements: compositions,
+    elements,
   };
 
   const response = await fetch(`${CREATOMATE_API_URL}/renders`, {

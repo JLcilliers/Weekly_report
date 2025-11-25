@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createVideoRender } from "@/lib/creatomate";
-import { GenerateVideoRequest, GenerateVideoResponse, BackgroundMedia } from "@/types";
+import { GenerateVideoRequest, GenerateVideoResponse, BackgroundMedia, BackgroundMusicConfig } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = origin.startsWith("http") ? origin : `${protocol}://${origin}`;
 
     // Convert relative URLs to absolute URLs for Creatomate
-    let { scenes, backgrounds } = body;
+    let { scenes, backgrounds, backgroundMusic } = body;
 
     if (backgrounds) {
       backgrounds = backgrounds.map((bg) => {
@@ -48,6 +48,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Convert music URL if relative
+    if (backgroundMusic && backgroundMusic.url.startsWith("/")) {
+      backgroundMusic = { ...backgroundMusic, url: `${baseUrl}${backgroundMusic.url}` };
+    }
+
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(
         { error: "Scenes are required" },
@@ -63,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Creating video render with", scenes.length, "scenes");
-    const render = await createVideoRender(scenes, backgrounds);
+    const render = await createVideoRender(scenes, backgrounds, backgroundMusic);
 
     const response: GenerateVideoResponse = {
       renderId: render.id,
