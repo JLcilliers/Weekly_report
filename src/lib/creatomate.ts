@@ -73,14 +73,11 @@ function buildSceneComposition(
     enter: { type: "text-appear", duration: 0.8 },
   });
 
-  // AI Voiceover using Google Cloud TTS (built into Creatomate)
+  // AI Voiceover using OpenAI TTS
   elements.push({
     type: "audio",
-    text_to_speech: {
-      type: "google",
-      voice_id: "en-US-Studio-O", // High-quality Google Studio voice (female)
-      text: scene.voiceoverText,
-    },
+    provider: "openai voice:nova model:tts-1-hd",
+    source: scene.voiceoverText,
   });
 
   return {
@@ -111,10 +108,8 @@ export async function createVideoRender(
     width: 1080,
     height: 1920,
     frame_rate: 30,
-    // Higher quality encoding
-    pixel_format: "yuv420p",
-    video_bitrate: "8 Mbps",
-    audio_bitrate: "192 kbps",
+    // Full quality rendering
+    render_scale: 1,
     elements: compositions,
   };
 
