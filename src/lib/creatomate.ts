@@ -149,8 +149,15 @@ export async function createVideoRender(
     width: 1080,
     height: 1920,
     frame_rate: 30,
-    // Full quality rendering
+    // HD quality settings
     render_scale: 1,
+    // High quality H.264 encoding
+    h264_profile: "high",
+    h264_level: "4.2",
+    // Higher bitrate for crisp video (8 Mbps)
+    video_bitrate: "8000 kbps",
+    // Quality pixel format
+    pixel_format: "yuv420p",
     elements,
   };
 
