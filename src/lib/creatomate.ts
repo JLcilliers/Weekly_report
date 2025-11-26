@@ -139,35 +139,33 @@ export async function createVideoRender(
       track: 2, // Separate track from scene compositions
       source: backgroundMusic.url,
       volume: `${actualVolume}%`,
-      // Loop the music to fill the entire video duration
-      loop: true,
+      // Don't loop - let the video end when content ends
+      // Music will fade out naturally or be cut when video ends
     });
   }
 
+  // RenderScript with only valid Creatomate properties
+  // Note: Creatomate handles video encoding automatically - no codec settings needed
   const renderScript = {
     output_format: "mp4",
     width: 1080,
     height: 1920,
     frame_rate: 30,
-    // HD quality settings
-    render_scale: 1,
-    // High quality H.264 encoding
-    h264_profile: "high",
-    h264_level: "4.2",
-    // Higher bitrate for crisp video (8 Mbps)
-    video_bitrate: "8000 kbps",
-    // Quality pixel format
-    pixel_format: "yuv420p",
     elements,
   };
 
+  // render_scale goes at the API request level, not in RenderScript
+  // Using 1.0 for full quality (100% of specified resolution)
   const response = await fetch(`${CREATOMATE_API_URL}/renders`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ source: renderScript }),
+    body: JSON.stringify({
+      source: renderScript,
+      render_scale: 1,
+    }),
   });
 
   if (!response.ok) {
