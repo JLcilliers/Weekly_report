@@ -21,22 +21,14 @@ export async function POST(request: NextRequest) {
 
     const body: GenerateVideoRequest = await request.json();
 
-    // Get the origin from the request for converting relative URLs
-    const origin = request.headers.get("origin") || request.headers.get("host") || "";
-    const protocol = request.headers.get("x-forwarded-proto") || "http";
-    const baseUrl = origin.startsWith("http") ? origin : `${protocol}://${origin}`;
+    const { scenes, background, backgroundMusic, voiceId } = body;
 
-    // Convert relative URLs to absolute URLs for Creatomate
-    let { scenes, background, backgroundMusic } = body;
-
-    // Convert background URL if relative
-    if (background && background.url.startsWith("/")) {
-      background = { ...background, url: `${baseUrl}${background.url}` };
+    // Log media URLs for debugging
+    if (background) {
+      console.log("Background media URL:", background.url);
     }
-
-    // Convert music URL if relative
-    if (backgroundMusic && backgroundMusic.url.startsWith("/")) {
-      backgroundMusic = { ...backgroundMusic, url: `${baseUrl}${backgroundMusic.url}` };
+    if (backgroundMusic) {
+      console.log("Background music URL:", backgroundMusic.url);
     }
 
     if (!scenes || scenes.length === 0) {
@@ -53,8 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Creating video render with", scenes.length, "scenes");
-    const render = await createVideoRender(scenes, background, backgroundMusic);
+    console.log("Creating video render with", scenes.length, "scenes", voiceId ? `using voice: ${voiceId}` : "using default voice");
+    const render = await createVideoRender(scenes, background, backgroundMusic, voiceId);
 
     const response: GenerateVideoResponse = {
       renderId: render.id,

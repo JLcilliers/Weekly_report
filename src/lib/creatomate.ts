@@ -12,10 +12,14 @@ interface CreatomateRenderResponse {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RenderScriptElement = any;
 
+// Default voice ID (Rachel)
+const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+
 function buildSceneComposition(
   scene: Scene,
   sceneIndex: number,
-  background?: BackgroundMedia
+  background?: BackgroundMedia,
+  voiceId?: string
 ): RenderScriptElement {
   const elements: RenderScriptElement[] = [];
 
@@ -26,7 +30,7 @@ function buildSceneComposition(
         type: "video",
         source: background.url,
         fit: "cover",
-        audio_volume: "0%", // Mute background video
+        volume: "0%", // Mute background video
       });
     } else {
       elements.push({
@@ -43,33 +47,35 @@ function buildSceneComposition(
     });
   }
 
-  // Heading text at top
+  // Heading text at top - HD quality with larger fonts
   elements.push({
     type: "text",
     text: scene.heading,
     font_family: "Inter",
     font_weight: "700",
-    font_size: "8 vmin",
+    font_size: "10 vmin", // Increased from 8 vmin for better readability
     fill_color: "#ffffff",
     x: "50%",
-    y: "15%",
+    y: "12%",
     width: "90%",
     x_alignment: "50%",
     y_alignment: "50%",
     text_alignment: "center",
-    shadow_color: "rgba(0,0,0,0.5)",
-    shadow_blur: "2 vmin",
+    shadow_color: "rgba(0,0,0,0.7)",
+    shadow_blur: "3 vmin",
+    shadow_x: "0.5 vmin",
+    shadow_y: "0.5 vmin",
     enter: { type: "text-slide", direction: "up", duration: 0.5 },
   });
 
-  // Bullet points in the middle
+  // Bullet points in the middle - HD quality with larger fonts
   elements.push({
     type: "text",
     text: scene.bulletPoints.map((bp) => `• ${bp}`).join("\n"),
     font_family: "Inter",
-    font_weight: "400",
-    font_size: "4.5 vmin",
-    line_height: "180%",
+    font_weight: "500", // Slightly bolder for better readability
+    font_size: "5.5 vmin", // Increased from 4.5 vmin for HD readability
+    line_height: "185%",
     fill_color: "#ffffff",
     x: "50%",
     y: "50%",
@@ -77,16 +83,18 @@ function buildSceneComposition(
     x_alignment: "50%",
     y_alignment: "50%",
     text_alignment: "left",
-    shadow_color: "rgba(0,0,0,0.5)",
-    shadow_blur: "1 vmin",
+    shadow_color: "rgba(0,0,0,0.7)",
+    shadow_blur: "2 vmin",
+    shadow_x: "0.3 vmin",
+    shadow_y: "0.3 vmin",
     enter: { type: "text-appear", duration: 0.8 },
   });
 
-  // AI Voiceover using ElevenLabs TTS
-  // Provider string format: elevenlabs model_id=... voice_id=...
+  // AI Voiceover using ElevenLabs TTS with selectable voice
+  const selectedVoiceId = voiceId || DEFAULT_VOICE_ID;
   elements.push({
     type: "audio",
-    provider: "elevenlabs model_id=eleven_multilingual_v2 voice_id=21m00Tcm4TlvDq8ikWAM",
+    provider: `elevenlabs model_id=eleven_multilingual_v2 voice_id=${selectedVoiceId}`,
     dynamic: true,
     source: scene.voiceoverText,
   });
@@ -102,7 +110,8 @@ function buildSceneComposition(
 export async function createVideoRender(
   scenes: Scene[],
   background?: BackgroundMedia,
-  backgroundMusic?: BackgroundMusicConfig
+  backgroundMusic?: BackgroundMusicConfig,
+  voiceId?: string
 ): Promise<CreatomateRenderResponse> {
   const apiKey = process.env.CREATOMATE_API_KEY;
 
@@ -112,7 +121,7 @@ export async function createVideoRender(
 
   // Build RenderScript with compositions for each scene (same background for all)
   const compositions = scenes.map((scene, index) =>
-    buildSceneComposition(scene, index, background)
+    buildSceneComposition(scene, index, background, voiceId)
   );
 
   // Build elements array - compositions plus optional background music
@@ -120,11 +129,16 @@ export async function createVideoRender(
 
   // Add background music on a separate track if provided
   if (backgroundMusic) {
+    // Scale down volume for background music - should be very subtle behind voiceover
+    // UI shows 5-50%, we scale to 1-10% actual volume
+    // This keeps music as faint background, not competing with voiceover
+    const actualVolume = (backgroundMusic.volume / 5).toFixed(1);
+    console.log(`Music volume: UI=${backgroundMusic.volume}% -> actual=${actualVolume}%`);
     elements.push({
       type: "audio",
       track: 2, // Separate track from scene compositions
       source: backgroundMusic.url,
-      audio_volume: `${backgroundMusic.volume}%`,
+      volume: `${actualVolume}%`,
       // Loop the music to fill the entire video duration
       loop: true,
     });

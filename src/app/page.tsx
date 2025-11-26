@@ -9,6 +9,7 @@ import {
   GenerateVideoResponse,
   StatusResponse,
   BackgroundMedia,
+  ELEVENLABS_VOICES,
 } from "@/types";
 
 interface MusicUpload {
@@ -17,6 +18,56 @@ interface MusicUpload {
 }
 
 type ProcessingStep = "idle" | "summarising" | "generating" | "rendering" | "completed" | "error";
+
+// Threshold for direct Cloudinary uploads (4MB - below Vercel's 4.5MB limit)
+const DIRECT_UPLOAD_THRESHOLD = 4 * 1024 * 1024;
+
+// Helper function to upload large files directly to Cloudinary
+async function uploadToCloudinaryDirect(
+  file: File,
+  resourceType: "image" | "video" | "auto"
+): Promise<{ url: string; type: string }> {
+  // Step 1: Get signed upload params from our API
+  const signatureResponse = await fetch("/api/upload-signature", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resourceType }),
+  });
+
+  if (!signatureResponse.ok) {
+    const errorData = await signatureResponse.json();
+    throw new Error(errorData.error || "Failed to get upload signature");
+  }
+
+  const { signature, timestamp, cloudName, apiKey, folder } = await signatureResponse.json();
+
+  // Step 2: Upload directly to Cloudinary
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("signature", signature);
+  formData.append("timestamp", timestamp.toString());
+  formData.append("api_key", apiKey);
+  formData.append("folder", folder);
+
+  const cloudinaryResponse = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!cloudinaryResponse.ok) {
+    const errorData = await cloudinaryResponse.json();
+    throw new Error(errorData.error?.message || "Cloudinary upload failed");
+  }
+
+  const result = await cloudinaryResponse.json();
+  return {
+    url: result.secure_url,
+    type: resourceType === "video" ? (file.type.startsWith("audio/") ? "audio" : "video") : "image",
+  };
+}
 
 const SUMMARY_LENGTH_OPTIONS: { value: SummaryLength; label: string }[] = [
   { value: "short", label: "Short (3 scenes)" },
@@ -42,6 +93,7 @@ export default function Home() {
   const [backgroundMusic, setBackgroundMusic] = useState<MusicUpload | null>(null);
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [musicVolume, setMusicVolume] = useState(15); // Default 15% volume
+  const [selectedVoice, setSelectedVoice] = useState(ELEVENLABS_VOICES[0].id); // Default to Rachel
 
   const [step, setStep] = useState<ProcessingStep>("idle");
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -127,6 +179,7 @@ export default function Home() {
             url: backgroundMusic.url,
             volume: musicVolume,
           } : undefined,
+          voiceId: selectedVoice,
         }),
       });
 
@@ -166,20 +219,36 @@ export default function Home() {
   const handleBackgroundUpload = async (file: File) => {
     setUploadingBackground(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      let data: BackgroundMedia;
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      // Use direct Cloudinary upload for large files to bypass Vercel's 4.5MB limit
+      if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+        console.log(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB), using direct upload`);
+        const resourceType = file.type.startsWith("video/") ? "video" : "image";
+        const result = await uploadToCloudinaryDirect(file, resourceType);
+        data = {
+          url: result.url,
+          type: result.type as "image" | "video",
+          fileName: file.name,
+        };
+      } else {
+        // Use server-side upload for smaller files
+        const formData = new FormData();
+        formData.append("file", file);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Upload failed");
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Upload failed");
+        }
+
+        data = await response.json();
       }
 
-      const data: BackgroundMedia = await response.json();
       setBackground(data);
     } catch (err) {
       console.error("Upload error:", err);
@@ -207,22 +276,35 @@ export default function Home() {
   const handleMusicUpload = async (file: File) => {
     setUploadingMusic(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      let url: string;
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      // Use direct Cloudinary upload for large files to bypass Vercel's 4.5MB limit
+      if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+        console.log(`Large audio file detected (${(file.size / 1024 / 1024).toFixed(2)}MB), using direct upload`);
+        // Cloudinary treats audio as "video" resource type
+        const result = await uploadToCloudinaryDirect(file, "video");
+        url = result.url;
+      } else {
+        // Use server-side upload for smaller files
+        const formData = new FormData();
+        formData.append("file", file);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Upload failed");
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Upload failed");
+        }
+
+        const data = await response.json();
+        url = data.url;
       }
 
-      const data = await response.json();
       setBackgroundMusic({
-        url: data.url,
+        url,
         fileName: file.name,
       });
     } catch (err) {
@@ -357,6 +439,38 @@ export default function Home() {
                     Warning: This mode includes swear words and cheeky commentary!
                   </p>
                 )}
+              </div>
+
+              {/* Voice Selection */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  AI Voice
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ELEVENLABS_VOICES.map((voice) => (
+                    <button
+                      key={voice.id}
+                      type="button"
+                      onClick={() => setSelectedVoice(voice.id)}
+                      className={`px-3 py-2 rounded-lg border text-sm font-medium transition text-left ${
+                        selectedVoice === voice.id
+                          ? "border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                          : "border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${voice.gender === "female" ? "bg-pink-400" : "bg-blue-400"}`} />
+                        <span>{voice.name}</span>
+                      </span>
+                      <span className="block text-xs opacity-70 mt-0.5">
+                        {voice.description} • {voice.accent}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Choose the AI voice for your video narration
+                </p>
               </div>
 
               {/* Video Background (collapsible) */}
@@ -504,7 +618,9 @@ export default function Home() {
                       <label htmlFor="music-volume" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                         Music Volume
                       </label>
-                      <span className="text-xs text-zinc-500">{musicVolume}%</span>
+                      <span className="text-xs text-zinc-500">
+                        {musicVolume <= 10 ? "Very quiet" : musicVolume <= 20 ? "Quiet" : musicVolume <= 35 ? "Medium" : "Loud"}
+                      </span>
                     </div>
                     <input
                       id="music-volume"
@@ -516,7 +632,7 @@ export default function Home() {
                       className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                      Lower = voice clearer, Higher = music more prominent
+                      Keep low so voiceover remains clear
                     </p>
                   </div>
                 </div>
